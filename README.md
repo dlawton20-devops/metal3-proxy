@@ -657,8 +657,8 @@ kubectl get svc -n metal3-system -l app.kubernetes.io/name=envoy-proxy
 # Tail the Envoy access logs (audit trail)
 kubectl logs -n metal3-system -l app.kubernetes.io/name=envoy-proxy -f
 
-# Check Envoy stats
-kubectl port-forward svc/envoy-fwd-proxy-envoy 9901 -n metal3-system
+# Check Envoy stats (port-forward to the pod — admin port is not on the Service by default)
+kubectl port-forward -n metal3-system deploy/envoy-fwd-proxy-envoy 9901:9901
 curl http://localhost:9901/stats | grep forward_proxy
 
 # Verify proxy env vars are set on the Ironic pod

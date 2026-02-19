@@ -11,9 +11,12 @@ MetalLB VIP:
   kubectl get svc {{ include "metal3-ironic.envoy.serviceName" . }} -n {{ .Release.Namespace }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
 {{- end }}
 
-Admin / metrics:
-  kubectl port-forward svc/{{ include "metal3-ironic.envoy.serviceName" . }} {{ .Values.envoy.adminPort }}:{{ .Values.envoy.adminPort }} -n {{ .Release.Namespace }}
+Admin / metrics (port-forward to the pod, not the service):
+  kubectl port-forward -n {{ .Release.Namespace }} deploy/{{ include "metal3-ironic.fullname" . }}-envoy {{ .Values.envoy.adminPort }}:{{ .Values.envoy.adminPort }}
   curl http://localhost:{{ .Values.envoy.adminPort }}/stats
+{{- if .Values.envoy.service.exposeAdmin }}
+  (Admin port is also exposed on the Service since exposeAdmin=true)
+{{- end }}
 
 ──────────────────────────────────────────────────────────────
   Configure SUSE Edge Metal3 chart to use this proxy
