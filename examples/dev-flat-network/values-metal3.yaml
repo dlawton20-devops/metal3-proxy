@@ -4,7 +4,7 @@
 # Helm values for the suse-edge/metal3 chart with proxy settings.
 #
 #   Ironic VIP:   10.2.83.71
-#   Envoy Proxy:  envoy-fwd-proxy-envoy.metal3-system.svc:10000
+#   Envoy Proxy:  10.2.83.20 (MetalLB VIP) or in-cluster service name
 #   Mock BMC:     10.2.83.76
 #
 # Install:
@@ -24,8 +24,16 @@ global:
       # ── Proxy settings ────────────────────────────────────────────────────
       # Route all outbound HTTP/HTTPS through the Envoy forward proxy.
       # Ironic (sushy → Python requests) honours these env vars natively.
-      HTTP_PROXY:  "http://envoy-fwd-proxy-envoy.metal3-system.svc:10000"
-      HTTPS_PROXY: "http://envoy-fwd-proxy-envoy.metal3-system.svc:10000"
+      #
+      # Option A: Use the MetalLB VIP (works from anywhere — same cluster,
+      #           different cluster, or external proxy on a VM/bare-metal).
+      HTTP_PROXY:  "http://10.2.83.20:10000"
+      HTTPS_PROXY: "http://10.2.83.20:10000"
+      #
+      # Option B: Use the in-cluster service name (only works if Ironic and
+      #           Envoy are in the SAME Kubernetes cluster and namespace).
+      # HTTP_PROXY:  "http://envoy-fwd-proxy-envoy.metal3-system.svc:10000"
+      # HTTPS_PROXY: "http://envoy-fwd-proxy-envoy.metal3-system.svc:10000"
 
       # ── NO_PROXY ──────────────────────────────────────────────────────────
       # Skip the proxy for these destinations (go direct):

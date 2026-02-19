@@ -143,8 +143,8 @@ kubectl get svc -n metal3-system -l app.kubernetes.io/name=ironic
 
 # Proxy env vars should be set on the Ironic pod
 kubectl exec -n metal3-system deploy/metal3-ironic -- env | grep -i proxy
-#  HTTP_PROXY=http://envoy-fwd-proxy-envoy.metal3-system.svc:10000
-#  HTTPS_PROXY=http://envoy-fwd-proxy-envoy.metal3-system.svc:10000
+#  HTTP_PROXY=http://10.2.83.20:10000
+#  HTTPS_PROXY=http://10.2.83.20:10000
 #  NO_PROXY=localhost,127.0.0.1,::1,.svc,.svc.cluster.local,10.2.83.71
 ```
 
