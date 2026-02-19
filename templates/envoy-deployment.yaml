@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "metal3-ironic.fullname" . }}-envoy
+  labels:
+    {{- include "metal3-ironic.envoy.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.envoy.replicas }}
+  selector:
+    matchLabels:
+      {{- include "metal3-ironic.envoy.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "metal3-ironic.envoy.selectorLabels" . | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/envoy-configmap.yaml") . | sha256sum }}
+    spec:
+      {{- with .Values.envoy.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.envoy.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.envoy.hostNetwork }}
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      {{- end }}
+      containers:
+      - name: envoy
+        image: "{{ .Values.envoy.image.repository }}:{{ .Values.envoy.image.tag }}"
+        imagePullPolicy: {{ .Values.envoy.image.pullPolicy }}
+        args:
+        - -c
+        - /etc/envoy/envoy.yaml
+        - --service-cluster
+        - forward-proxy
+        - --service-node
+        - $(POD_NAME)
+        {{- if .Values.envoy.logLevel }}
+        - -l
+        - {{ .Values.envoy.logLevel }}
+        {{- end }}
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        ports:
+        - name: proxy
+          containerPort: {{ .Values.envoy.listenerPort }}
+          protocol: TCP
+        - name: admin
+          containerPort: {{ .Values.envoy.adminPort }}
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: admin
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /ready
+            port: admin
+          initialDelaySeconds: 10
+          periodSeconds: 15
+        resources:
+          {{- toYaml .Values.envoy.resources | nindent 10 }}
+        volumeMounts:
+        - name: envoy-config
+          mountPath: /etc/envoy
+          readOnly: true
+        {{- with .Values.envoy.extraVolumeMounts }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      volumes:
+      - name: envoy-config
+        configMap:
+          name: {{ include "metal3-ironic.fullname" . }}-envoy
+      {{- with .Values.envoy.extraVolumes }}
+      {{- toYaml . | nindent 6 }}
+      {{- end }}

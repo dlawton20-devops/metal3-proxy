@@ -1,0 +1,35 @@
+══════════════════════════════════════════════════════════════
+  Metal3 Envoy Forward Proxy — Installed!
+══════════════════════════════════════════════════════════════
+
+Envoy proxy service:
+  {{ include "metal3-ironic.envoy.serviceName" . }}.{{ .Release.Namespace }}.svc:{{ .Values.envoy.service.port }}
+
+{{- if eq .Values.envoy.service.type "LoadBalancer" }}
+
+MetalLB VIP:
+  kubectl get svc {{ include "metal3-ironic.envoy.serviceName" . }} -n {{ .Release.Namespace }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+{{- end }}
+
+Admin / metrics:
+  kubectl port-forward svc/{{ include "metal3-ironic.envoy.serviceName" . }} {{ .Values.envoy.adminPort }}:{{ .Values.envoy.adminPort }} -n {{ .Release.Namespace }}
+  curl http://localhost:{{ .Values.envoy.adminPort }}/stats
+
+──────────────────────────────────────────────────────────────
+  Configure SUSE Edge Metal3 chart to use this proxy
+──────────────────────────────────────────────────────────────
+
+Add to your suse-edge/metal3 values override:
+
+  metal3-ironic:
+    ironicExtraEnv:
+      HTTP_PROXY:  "{{ include "metal3-ironic.envoy.proxyUrl" . }}"
+      HTTPS_PROXY: "{{ include "metal3-ironic.envoy.proxyUrl" . }}"
+      NO_PROXY:    "localhost,127.0.0.1,::1,.svc,.svc.cluster.local"
+
+Then install/upgrade the Metal3 chart:
+
+  helm upgrade --install metal3 suse-edge/metal3 \
+    --version 0.13.0 \
+    -n {{ .Release.Namespace }} \
+    -f values-metal3.yaml

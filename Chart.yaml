@@ -1,0 +1,20 @@
+apiVersion: v2
+name: metal3-envoy-fwd-proxy
+description: >-
+  Envoy forward proxy for Metal3 / Ironic BMC traffic.
+  Deploy alongside the SUSE Edge Metal3 chart so Ironic can reach
+  out-of-band BMC endpoints (Redfish / IPMI) via HTTP_PROXY / HTTPS_PROXY.
+version: 0.1.0
+appVersion: "1.31"
+type: application
+keywords:
+  - metal3
+  - ironic
+  - envoy
+  - forward-proxy
+  - bmc
+  - baremetal
+  - redfish
+home: https://github.com/suse-edge/charts
+sources:
+  - https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/dynamic_forward_proxy_filter

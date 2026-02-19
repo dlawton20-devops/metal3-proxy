@@ -1,0 +1,33 @@
+{{- if .Values.envoy.auth.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "metal3-ironic.fullname" . }}-envoy
+  labels:
+    {{- include "metal3-ironic.envoy.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "metal3-ironic.envoy.selectorLabels" . | nindent 6 }}
+  policyTypes:
+  - Ingress
+  ingress:
+  # Only allow Ironic pods to reach the proxy port
+  - from:
+    - podSelector:
+        matchLabels:
+          {{- toYaml .Values.envoy.auth.networkPolicy.ironicPodSelector | nindent 10 }}
+    ports:
+    - port: {{ .Values.envoy.listenerPort }}
+      protocol: TCP
+  {{- if .Values.envoy.service.exposeAdmin }}
+  # Allow Prometheus scraping of admin port from monitoring namespace
+  - from:
+    {{- with .Values.envoy.auth.networkPolicy.adminAllowFrom }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    ports:
+    - port: {{ .Values.envoy.adminPort }}
+      protocol: TCP
+  {{- end }}
+{{- end }}

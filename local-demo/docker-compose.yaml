@@ -1,0 +1,61 @@
+##
+## Local demo: Ironic → Envoy forward proxy → Mock BMC
+##
+## Usage:
+##   docker compose up --build
+##   # then in another terminal:
+##   ./test.sh
+##
+
+services:
+  # ── Mock BMC (simulates an out-of-band Redfish endpoint) ──────────────────
+  mock-bmc:
+    build: ./mock-bmc
+    container_name: mock-bmc
+    hostname: mock-bmc
+    networks:
+      - oob          # BMC lives on the "out-of-band" network
+    ports:
+      - "8000:8000"  # HTTP  Redfish
+      - "8443:8443"  # HTTPS Redfish
+
+  # ── Envoy forward proxy ───────────────────────────────────────────────────
+  envoy:
+    image: envoyproxy/envoy:v1.31-latest
+    container_name: envoy-proxy
+    command: ["-c", "/etc/envoy/envoy.yaml", "-l", "info"]
+    volumes:
+      - ./envoy.yaml:/etc/envoy/envoy.yaml:ro
+    networks:
+      - cluster      # reachable by Ironic
+      - oob          # can reach the BMC
+    ports:
+      - "10000:10000"  # proxy listener
+      - "9901:9901"    # admin interface
+
+  # ── Mock Ironic (curl-based client that uses the proxy) ───────────────────
+  mock-ironic:
+    image: curlimages/curl:latest
+    container_name: mock-ironic
+    depends_on:
+      - envoy
+      - mock-bmc
+    environment:
+      - HTTP_PROXY=http://envoy:10000
+      - HTTPS_PROXY=http://envoy:10000
+      - http_proxy=http://envoy:10000
+      - https_proxy=http://envoy:10000
+      - NO_PROXY=localhost,127.0.0.1
+      - no_proxy=localhost,127.0.0.1
+    networks:
+      - cluster      # same network as Envoy, NOT on oob
+    # Keep alive so we can exec into it
+    entrypoint: ["sh", "-c", "echo 'Mock Ironic ready — use docker exec to run tests'; sleep infinity"]
+
+networks:
+  # Simulates the cluster-internal network (Ironic ↔ Envoy)
+  cluster:
+    driver: bridge
+  # Simulates the out-of-band BMC network (Envoy ↔ BMC)
+  oob:
+    driver: bridge

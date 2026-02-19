@@ -1,0 +1,138 @@
+# =============================================================================
+# Metal3 Envoy Forward Proxy
+# =============================================================================
+# Envoy acts as an HTTP/HTTPS forward proxy so that Ironic (deployed via
+# the SUSE Edge Metal3 chart) can reach out-of-band BMC endpoints
+# (Redfish / IPMI) that live on a separate network.
+#
+#   Ironic  ──HTTP(S)_PROXY──▶  Envoy  ──▶  BMC (OOB network)
+#
+# Configure the SUSE Edge chart to route Ironic traffic through this proxy
+# using ironicExtraEnv (see README.md for details).
+# =============================================================================
+envoy:
+  image:
+    repository: envoyproxy/envoy
+    tag: v1.31-latest
+    pullPolicy: IfNotPresent
+
+  replicas: 1
+
+  # Port Envoy listens on for proxy traffic
+  listenerPort: 10000
+
+  # Port for the Envoy admin interface (/ready, /stats, /clusters)
+  adminPort: 9901
+
+  # DNS resolution family: V4_ONLY | V6_ONLY | V4_PREFERRED | ALL
+  dnsLookupFamily: V4_ONLY
+
+  # Optional: explicit upstream DNS resolvers for BMC name resolution.
+  # Useful when BMCs are only resolvable by a specific DNS server on the OOB
+  # network.  Leave empty to use the pod's default resolver.
+  # dnsResolvers:
+  #   - address: "10.0.0.1"
+  #     port: 53
+  dnsResolvers: []
+
+  # Envoy log level: trace | debug | info | warning | error | critical | off
+  logLevel: info
+
+  # Timeouts
+  connectTimeout: 5s
+  timeout: 60s
+
+  # Access logging to stdout (audit trail for every proxied request)
+  accessLog:
+    enabled: true
+
+  # ── Service / MetalLB ──────────────────────────────────────────────────────
+  service:
+    # Use "LoadBalancer" to get a MetalLB VIP on the OOB/BMC network.
+    # Use "ClusterIP" if Envoy only needs to be reachable from within the cluster.
+    type: LoadBalancer
+
+    port: 10000
+
+    # MetalLB: request a specific IP from your address pool.
+    # Leave empty to let MetalLB pick one automatically.
+    loadBalancerIP: ""
+    #loadBalancerIP: "10.10.0.200"
+
+    # Annotations for MetalLB or other LB controllers.
+    # For MetalLB L2 mode, use metallb.universe.tf/loadBalancerIPs or
+    # metallb.universe.tf/address-pool to pin to a specific pool.
+    annotations: {}
+      # metallb.universe.tf/address-pool: "oob-pool"
+      # metallb.universe.tf/loadBalancerIPs: "10.10.0.200"
+
+    # externalTrafficPolicy: "Local" preserves client source IPs (useful for
+    # RBAC source-CIDR rules). "Cluster" (default) may SNAT client IPs.
+    externalTrafficPolicy: Local
+
+    # Expose the admin port (:9901) on the Service for Prometheus scraping
+    exposeAdmin: false
+
+  # ── Authentication & Authorization ─────────────────────────────────────────
+  auth:
+    # Layer 1: Kubernetes NetworkPolicy — only Ironic pods can reach Envoy
+    networkPolicy:
+      enabled: true
+      # Label selector identifying Ironic pods in the SUSE Edge chart.
+      # Default matches the standard ironic pod labels.
+      ironicPodSelector:
+        app.kubernetes.io/name: ironic
+      # Additional sources allowed to reach the admin port (e.g. Prometheus)
+      adminAllowFrom: []
+        # - namespaceSelector:
+        #     matchLabels:
+        #       kubernetes.io/metadata.name: monitoring
+
+    # Layer 2: Envoy RBAC — restrict source CIDRs and destination hosts
+    rbac:
+      enabled: true
+      # Only allow proxy requests to these BMC hosts/subnets.
+      # Matched against the Host/:authority header (contains or substring).
+      # Leave empty to allow any destination.
+      allowedDestinations: []
+        # - "bmc"           # any host containing "bmc"
+        # - ".oob.local"    # any host in the .oob.local domain
+        # - "10.10.0."      # any host in 10.10.0.x
+      # Only allow requests from these source CIDRs (Ironic pod CIDR).
+      # Leave empty to allow any source (NetworkPolicy still protects).
+      allowedSourceCIDRs: []
+        # - prefix: "10.244.0.0"
+        #   len: 16
+
+    # Layer 3: Basic Auth (OPTIONAL — NOT recommended, see README.md)
+    # Proxy-level basic auth is fragile with HTTPS CONNECT tunneling.
+    # Prefer NetworkPolicy + RBAC instead.
+    basicAuth:
+      enabled: false
+      username: "ironic"
+      password: "changeme"
+      # Generate with: echo -n "changeme" | openssl dgst -sha1 -binary | openssl enc -base64
+      passwordSHA: "+pvrmeQCmtWmYVOZ57uuITVghrM="
+
+  # Set to true if Envoy needs direct access to the OOB/BMC network via the
+  # host's network stack (e.g. when BMCs are on a VLAN reachable from the host).
+  hostNetwork: false
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+  nodeSelector: {}
+  tolerations: []
+  extraVolumes: []
+  extraVolumeMounts: []
+
+# =============================================================================
+# Global overrides
+# =============================================================================
+nameOverride: ""
+fullnameOverride: ""
