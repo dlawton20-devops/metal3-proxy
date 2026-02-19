@@ -1,0 +1,44 @@
+# =============================================================================
+# Envoy Forward Proxy — Dev Flat Network Values
+# =============================================================================
+# Helm values for the metal3-envoy-fwd-proxy chart.
+#
+#   Network:  10.2.83.0/24 (flat — everything on one subnet)
+#   Envoy:    10.2.83.20   (MetalLB VIP)
+#   Mock BMC: 10.2.83.76   (KVM guest on VM host 10.2.83.181)
+#
+# Install:
+#   helm install envoy-fwd-proxy ../.. \
+#     -n metal3-system --create-namespace \
+#     --set fullnameOverride=envoy-fwd-proxy \
+#     -f values-envoy.yaml
+# =============================================================================
+
+envoy:
+  # ── Service / MetalLB ────────────────────────────────────────────────────
+  service:
+    type: LoadBalancer
+    loadBalancerIP: "10.2.83.20"          # Envoy proxy VIP on flat network
+    externalTrafficPolicy: Local           # preserves source IPs for RBAC
+
+  # ── Authentication & Authorization ───────────────────────────────────────
+  auth:
+    # Layer 1: NetworkPolicy — only Ironic pods can reach Envoy
+    networkPolicy:
+      enabled: true
+
+    # Layer 2: Envoy RBAC — restrict destinations to the mock BMC
+    rbac:
+      enabled: true
+      allowedDestinations:
+        - "10.2.83.76"                    # only allow proxying to mock BMC
+        # Broaden later as you add more BMCs:
+        # - "10.2.83."                    # allow any host on the subnet
+
+  # ── DNS / Timeouts ──────────────────────────────────────────────────────
+  # On a flat network the pod's default DNS resolver can reach everything,
+  # so no custom dnsResolvers needed.
+  dnsLookupFamily: V4_ONLY
+  connectTimeout: 5s
+  timeout: 60s
+  logLevel: info

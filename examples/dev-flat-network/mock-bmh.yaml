@@ -1,0 +1,49 @@
+# =============================================================================
+# BareMetalHost — Mock BMH (KVM guest)
+# =============================================================================
+# A BareMetalHost CR pointing at the virtual BMC running on the KVM guest.
+#
+#   VM host:      10.2.83.181
+#   KVM guest BMC: 10.2.83.76 (Redfish endpoint)
+#
+# The BMC address uses the redfish-virtualmedia driver. Adjust the driver
+# prefix and Systems path to match your virtual BMC setup:
+#
+#   sushy-tools:   redfish-virtualmedia://10.2.83.76:8000/redfish/v1/Systems/1
+#   vbmc (IPMI):   ipmi://10.2.83.76:623
+#   real iDRAC:    redfish-virtualmedia://10.2.83.76/redfish/v1/Systems/System.Embedded.1
+#
+# Apply AFTER both Helm charts are installed:
+#   kubectl apply -f mock-bmh.yaml
+# =============================================================================
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mock-bmc-creds
+  namespace: metal3-system
+type: Opaque
+stringData:
+  username: "admin"                # virtual BMC username
+  password: "password"             # virtual BMC password
+---
+apiVersion: metal3.io/v1alpha1
+kind: BareMetalHost
+metadata:
+  name: mock-node-1
+  namespace: metal3-system
+spec:
+  online: true
+  bootMACAddress: "52:54:00:00:00:01"    # ← replace with your KVM guest's MAC
+  bmc:
+    # ── Adjust this URL to match your virtual BMC ───────────────────────
+    # sushy-tools (Redfish over HTTP on port 8000):
+    address: "redfish-virtualmedia://10.2.83.76:8000/redfish/v1/Systems/1"
+    #
+    # sushy-tools (Redfish over HTTPS on port 8443):
+    # address: "redfish-virtualmedia+https://10.2.83.76:8443/redfish/v1/Systems/1"
+    #
+    # Standard Redfish on port 443:
+    # address: "redfish-virtualmedia://10.2.83.76/redfish/v1/Systems/1"
+    #
+    credentialsName: mock-bmc-creds
+    disableCertificateVerification: true  # self-signed cert on virtual BMC

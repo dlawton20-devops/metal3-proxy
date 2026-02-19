@@ -1,0 +1,37 @@
+# =============================================================================
+# SUSE Edge Metal3 Chart — Dev Flat Network Values
+# =============================================================================
+# Helm values for the suse-edge/metal3 chart with proxy settings.
+#
+#   Ironic VIP:   10.2.83.71
+#   Envoy Proxy:  envoy-fwd-proxy-envoy.metal3-system.svc:10000
+#   Mock BMC:     10.2.83.76
+#
+# Install:
+#   helm install metal3 suse-edge/metal3 \
+#     --version 0.13.0 \
+#     -n metal3-system \
+#     -f values-metal3.yaml
+# =============================================================================
+
+global:
+  ironicIP: "10.2.83.71"
+  enable_tls: true
+  enable_basicAuth: true
+
+  metal3-ironic:
+    ironicExtraEnv:
+      # ── Proxy settings ────────────────────────────────────────────────────
+      # Route all outbound HTTP/HTTPS through the Envoy forward proxy.
+      # Ironic (sushy → Python requests) honours these env vars natively.
+      HTTP_PROXY:  "http://envoy-fwd-proxy-envoy.metal3-system.svc:10000"
+      HTTPS_PROXY: "http://envoy-fwd-proxy-envoy.metal3-system.svc:10000"
+
+      # ── NO_PROXY ──────────────────────────────────────────────────────────
+      # Skip the proxy for these destinations (go direct):
+      #   localhost / 127.0.0.1 / ::1   — loopback
+      #   .svc / .svc.cluster.local      — all in-cluster Kubernetes services
+      #   10.2.83.71                      — Ironic's own VIP (don't proxy to self)
+      #
+      # Everything ELSE (i.e. 10.2.83.76 the BMC) goes through the proxy.
+      NO_PROXY: "localhost,127.0.0.1,::1,.svc,.svc.cluster.local,10.2.83.71"

@@ -1,0 +1,31 @@
+# =============================================================================
+# MetalLB IP Address Pool — Dev Flat Network
+# =============================================================================
+# Assigns VIPs on the flat 10.2.83.0/24 network.
+#
+#   10.2.83.20  → Envoy forward proxy
+#   10.2.83.71  → Ironic API endpoint
+#
+# Apply BEFORE installing Helm charts:
+#   kubectl apply -f metallb-pool.yaml
+# =============================================================================
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: dev-pool
+  namespace: metallb-system
+spec:
+  addresses:
+    - 10.2.83.20/32           # Envoy forward proxy VIP
+    - 10.2.83.71/32           # Ironic VIP
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: dev-l2
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+    - dev-pool
+  # Flat network — single NIC, no interface filter needed.
+  # MetalLB will ARP for these IPs on the node's default interface.
